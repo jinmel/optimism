@@ -7,7 +7,7 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
-  suave_data:
+  suave_l2_data:
   op_log:
 
 networks:
@@ -313,25 +313,13 @@ services:
 
   suave-op-execution-geth:
     image: flashbots/suave-op-execution-geth:latest
-    command:
-      - --dev
-      - --dev.gaslimit=30000000
-      - --http
-      - --http.port=8545
-      - --http.addr=0.0.0.0
-      - --http.vhosts=*
-      - --http.corsdomain=*
-      - --ws
-      - --ws.origins=*
-      - --ws.addr=0.0.0.0
-      - --keystore=/keystore/keystore
-    volumes:
-      - "builder_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+    entrypoint:
       - "/bin/sh"
       - "/entrypoint.sh"
-      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - --authrpc.jwtsecret=/config/test-jwt-secret.txt
+    volumes:
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/entrypoint-l2.sh:/entrypoint.sh"
     networks:
       - custom_net
