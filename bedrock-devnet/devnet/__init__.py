@@ -244,7 +244,7 @@ def devnet_deploy(paths):
 
     # Bring up the suave op-node and op-geth.
     log.info('Bringing up `suave-op-node` and `suave-op-geth`.')
-    run_command(['docker', 'compose', 'up', '-d', 'suave-op-node', 'suave-op-geth'], cwd=paths.ops_bedrock_dir, env=docker_env)
+    run_command(['docker', 'compose', 'up', '-d', 'suave-op-node', 'suave-geth', 'suave-op-geth'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Fin.
     log.info('Devnet ready.')
