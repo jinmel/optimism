@@ -1,4 +1,4 @@
-FROM flashbots/op-geth:latest
+FROM jinmel/op-geth:latest
 
 RUN apk add --no-cache jq
 

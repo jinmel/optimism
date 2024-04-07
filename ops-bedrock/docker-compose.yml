@@ -290,7 +290,7 @@ services:
   suave-geth:
     depends_on:
       - suave-op-geth
-    image: flashbots/suave-geth:optimism
+    image: jinmel/suave-geth:optimism
     command:
       - --dev
       - --dev.gaslimit=30000000
