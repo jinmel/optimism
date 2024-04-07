@@ -117,20 +117,24 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 	}
 }
 
-func getPayloadWithBuilderPayload(ctx context.Context, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (*eth.ExecutionPayloadEnvelope, error) {
+// makes parallel request to builder and engine to get the payload
+func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (
+	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
 	// if builder is not enabled, return early with default path.
 	if !builder.Enabled() {
-		return eng.GetPayload(ctx, payloadInfo)
+		payload, err := eng.GetPayload(ctx, payloadInfo)
+		return payload, nil, err
 	}
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // TODO: make timeout configurable
-	defer cancel()
+	log.Info("attempting to get payload from builder", "l2head", l2head, "payloadInfo", payloadInfo)
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 
 	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
 	// start the payload request to builder api
 	go func() {
-		payload, err := builder.GetPayload(ctxTimeout, l2head)
+		payload, err := builder.GetPayload(ctxTimeout, l2head, log)
 		if err != nil {
+			log.Warn("failed to get payload from builder", "error", err.Error())
 			cancel()
 			return
 		}
@@ -138,16 +142,17 @@ func getPayloadWithBuilderPayload(ctx context.Context, eng ExecEngine, payloadIn
 	}()
 
 	envelope, err := eng.GetPayload(ctx, payloadInfo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get execution payload: %w", err)
-	}
 
 	// select the payload from builder if possible
 	select {
 	case <-ctxTimeout.Done():
-		return envelope, nil
+		log.Warn("builder request failed", "err", ctxTimeout.Err())
+		return envelope, nil, err
 	case builderEnvelope := <-ch:
-		return builderEnvelope, nil
+		log.Info("Received payload from builder", "hash", builderEnvelope.ExecutionPayload.BlockHash, "number", uint64(builderEnvelope.ExecutionPayload.BlockNumber))
+		log.Info("Engine payload", "payload", envelope.ExecutionPayload)
+		log.Info("Builder payload", "payload", builderEnvelope.ExecutionPayload)
+		return envelope, builderEnvelope, err
 	}
 }
 
@@ -167,6 +172,7 @@ func confirmPayload(
 	l2head eth.L2BlockRef,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
+	var builderEnvelope *eth.ExecutionPayloadEnvelope
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
 	if cached := agossip.Get(); cached != nil {
 		envelope = cached
@@ -177,18 +183,38 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, err = getPayloadWithBuilderPayload(ctx, eng, payloadInfo, l2head, builderClient)
+		envelope, builderEnvelope, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient)
 	}
-	if err != nil {
-		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
-		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
+
+	if builderEnvelope != nil {
+		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
+		if err == nil {
+			log.Info("succeessfully inserted payload from builder")
+			return builderEnvelope, errTyp, err
+		}
+		log.Warn("failed to insert payload from builder", "errTyp", errTyp, "error", err.Error())
 	}
+
+	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, envelope)
+	return envelope, errType, err
+}
+
+func insertPayload(
+	ctx context.Context,
+	log log.Logger,
+	eng ExecEngine,
+	fc eth.ForkchoiceState,
+	updateSafe bool,
+	agossip async.AsyncGossiper,
+	sequencerConductor conductor.SequencerConductor,
+	envelope *eth.ExecutionPayloadEnvelope,
+) (errTyp BlockInsertionErrType, err error) {
 	payload := envelope.ExecutionPayload
 	if err := sanityCheckPayload(payload); err != nil {
-		return nil, BlockInsertPayloadErr, err
+		return BlockInsertPayloadErr, err
 	}
 	if err := sequencerConductor.CommitUnsafePayload(ctx, envelope); err != nil {
-		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)
+		return BlockInsertTemporaryErr, fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)
 	}
 	// begin gossiping as soon as possible
 	// agossip.Clear() will be called later if an non-temporary error is found, or if the payload is successfully inserted
@@ -196,14 +222,14 @@ func confirmPayload(
 
 	status, err := eng.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
+		return BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 	if status.Status == eth.ExecutionInvalid || status.Status == eth.ExecutionInvalidBlockHash {
 		agossip.Clear()
-		return nil, BlockInsertPayloadErr, eth.NewPayloadErr(payload, status)
+		return BlockInsertPayloadErr, eth.NewPayloadErr(payload, status)
 	}
 	if status.Status != eth.ExecutionValid {
-		return nil, BlockInsertTemporaryErr, eth.NewPayloadErr(payload, status)
+		return BlockInsertTemporaryErr, eth.NewPayloadErr(payload, status)
 	}
 
 	fc.HeadBlockHash = payload.BlockHash
@@ -218,22 +244,22 @@ func confirmPayload(
 			case eth.InvalidForkchoiceState:
 				// if we succeed to update the forkchoice pre-payload, but fail post-payload, then it is a payload error
 				agossip.Clear()
-				return nil, BlockInsertPayloadErr, fmt.Errorf("post-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
+				return BlockInsertPayloadErr, fmt.Errorf("post-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
 			default:
 				agossip.Clear()
-				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
+				return BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
 			}
 		} else {
-			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
+			return BlockInsertTemporaryErr, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
 		}
 	}
 	agossip.Clear()
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+		return BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
 	log.Info("inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
 		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
 		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
 		"txs", len(payload.Transactions), "update_safe", updateSafe)
-	return envelope, BlockInsertOK, nil
+	return BlockInsertOK, nil
 }

@@ -451,9 +451,8 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", server.HTTPHandler)
-	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+2))
+	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
 
-	// TODO: Write a proper sse server that can be stopped
 	var err error
 	n.httpEventStreamServer, err = httputil.StartHTTPServer(addr, mux)
 	if err != nil {
@@ -614,13 +613,18 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	return nil
 }
 
-func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *eth.PayloadAttributes) error {
-	n.log.Info("Publishing execution payload attributes on p2p", "attrs", attrs)
-	attrsJson, err := json.Marshal(attrs)
+func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error {
+	for i, tx := range attrs.Attributes().Transactions {
+		n.log.Info("Transaction", "index", i, "tx", tx)
+	}
+	builderAttrs := attrs.ToBuilderPayloadAttributes()
+	jsonBytes, err := json.Marshal(builderAttrs)
 	if err != nil {
 		n.log.Warn("failed to marshal payload attributes", "err", err)
+		return err
 	}
-	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: attrsJson})
+	n.log.Info("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
+	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
 	return nil
 }
 

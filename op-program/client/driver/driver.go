@@ -42,7 +42,7 @@ type Driver struct {
 type nilBuilderClient struct {
 }
 
-func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
+func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
 	return nil, nil
 }
 

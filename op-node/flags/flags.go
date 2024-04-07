@@ -369,6 +369,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	BuilderAPIAddr,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconArchiverAddr,

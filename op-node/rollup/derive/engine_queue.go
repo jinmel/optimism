@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -31,6 +32,47 @@ func NewAttributesWithParent(attributes *eth.PayloadAttributes, parent eth.L2Blo
 
 func (a *AttributesWithParent) Attributes() *eth.PayloadAttributes {
 	return a.attributes
+}
+
+func (a *AttributesWithParent) Parent() eth.L2BlockRef {
+	return a.parent
+}
+
+func (a *AttributesWithParent) IsLastInSpan() bool {
+	return a.isLastInSpan
+}
+
+func (a *AttributesWithParent) ToBuilderPayloadAttributes() *BuilderPayloadAttributes {
+	transactions := make([]*types.Transaction, len(a.attributes.Transactions))
+	for i, txBytes := range a.attributes.Transactions {
+		var ttx types.Transaction
+		ttx.UnmarshalBinary(txBytes)
+		transactions[i] = &ttx
+	}
+
+	return &BuilderPayloadAttributes{
+		Timestamp:             a.attributes.Timestamp,
+		Random:                common.HexToHash(a.attributes.PrevRandao.String()),
+		SuggestedFeeRecipient: a.attributes.SuggestedFeeRecipient,
+		Slot:                  a.parent.Number + 1,
+		HeadHash:              a.parent.Hash,
+		Withdrawals:           *a.attributes.Withdrawals,
+		ParentBeaconBlockRoot: a.attributes.ParentBeaconBlockRoot,
+		Transactions:          transactions,
+		GasLimit:              uint64(*a.attributes.GasLimit),
+	}
+}
+
+type BuilderPayloadAttributes struct {
+	Timestamp             hexutil.Uint64     `json:"timestamp"`
+	Random                common.Hash        `json:"prevRandao"`
+	SuggestedFeeRecipient common.Address     `json:"suggestedFeeRecipient,omitempty"`
+	Slot                  uint64             `json:"slot"`
+	HeadHash              common.Hash        `json:"blockHash"`
+	Withdrawals           types.Withdrawals  `json:"withdrawals"`
+	ParentBeaconBlockRoot *common.Hash       `json:"parentBeaconBlockRoot"`
+	Transactions          types.Transactions `json:"transactions"`
+	GasLimit              uint64
 }
 
 type NextAttributesProvider interface {

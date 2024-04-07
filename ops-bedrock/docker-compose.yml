@@ -61,10 +61,14 @@ services:
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - "--nat=extip:10.5.0.200"
+      - "--nodekeyhex=e8e00ec43b690f02844ed9b062decc3d613323cd136cf3bfbd30f1635698e5e4"
+      - "--rollup.disabletxpoolgossip"
     environment:
       GETH_MINER_RECOMMIT: 100ms
     networks:
-      - custom_net
+      custom_net:
+        ipv4_address: "10.5.0.200"
 
   op-node:
     depends_on:
@@ -102,6 +106,7 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --l2.builder=http://suave-geth:9062
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -272,11 +277,12 @@ services:
       --p2p.bootnodes=enr:-J24QGG7tyXLYkko-b6VwT1tI23jesehLEjMS_Dv8OepXrNPd3DObDrHAYpwDJLh-Go95HclbPVdm91oEDXfhE5ZUPaGAY5jmAZxgmlkgnY0gmlwhAoFAAWHb3BzdGFja4OFBwCJc2VjcDI1NmsxoQNNEvj5nPIMVFBRRvGU95BqlwRDrY_8aua6eTI_sV_yKIN0Y3CCIyuDdWRwgiMr
       --rpc.addr=0.0.0.0
       --rpc.port=9545
+      --syncmode=execution-layer
     volumes:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
     ports:
-      - 9547:9547
+      - 9546:9546
     networks:
       custom_net:
         ipv4_address: 10.5.0.123
@@ -284,7 +290,7 @@ services:
   suave-geth:
     depends_on:
       - suave-op-geth
-    image: flashbots/suave-geth:latest
+    image: flashbots/suave-geth:optimism
     command:
       - --dev
       - --dev.gaslimit=30000000
@@ -303,6 +309,7 @@ services:
       - --password=/keystore/password.txt
       - --log.debug
       - --suave.eth.remote_endpoint=http://suave-op-geth:8545
+      - --suave.local-relay-addr=0.0.0.0:9062
     volumes:
       - "${PWD}/suave-ex-node:/keystore"
     ports:
@@ -310,19 +317,6 @@ services:
       - 11546:8546
     networks:
       - custom_net
-
-  # suave-op-execution-geth:
-  #   image: flashbots/suave-op-execution-geth:latest
-  #   entrypoint:
-  #     - "/bin/sh"
-  #     - "/entrypoint.sh"
-  #     - --authrpc.jwtsecret=/config/test-jwt-secret.txt
-  #   volumes:
-  #     - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-  #     - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-  #     - "${PWD}/entrypoint-l2.sh:/entrypoint.sh"
-  #   networks:
-  #     - custom_net
 
   suave-op-geth:
     build:
@@ -337,7 +331,15 @@ services:
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - "--suave"
+      - "--suave.beacon_endpoint=http://suave-op-node:9546"
+      - "--http.api=web3,debug,eth,txpool,net,engine,suavex"
+      - "--syncmode=snap"
+      - "--bootnodes=enode://e42b01e82d3cf3e43bf8709509baf2043923f998693b405f67c7643950c904391bb58e363ac48e9b7137cb5491b6fa359e4d4b95caaa0ef3570073332e09f659@10.5.0.200:30303"
+      - "--nat=extip:10.5.0.201"
+      - "--rollup.disabletxpoolgossip"
     environment:
       GETH_MINER_RECOMMIT: 100ms
     networks:
-      - custom_net
+      custom_net:
+        ipv4_address: "10.5.0.201"
