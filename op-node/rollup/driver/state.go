@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/fatih/color"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -455,6 +456,7 @@ func (s *Driver) eventLoop() {
 
 // Invokes derivation pipeline to prepare the payload attributes for the next block.
 func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef) error {
+	green := color.New(color.FgGreen).Add(color.BgWhite).PrintFunc()
 	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2head)
 	if err != nil {
 		d.log.Error("Error finding next L1 Origin", "err", err)
@@ -471,8 +473,7 @@ func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef)
 	}
 
 	withParent := derive.NewAttributesWithParent(attrs, l2head, false)
-
-	log.Info("Publishing L2 attributes", "attrs", withParent)
+	green("Publishing L2 attributes %+v\n", withParent)
 	err = d.network.PublishL2Attributes(ctx, withParent)
 	if err != nil {
 		d.log.Error("Error publishing L2 attributes", "err", err)

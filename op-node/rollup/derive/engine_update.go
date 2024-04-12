@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/fatih/color"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
@@ -126,7 +127,9 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		return payload, nil, err
 	}
 
-	log.Info("attempting to get payload from builder", "l2head", l2head, "payloadInfo", payloadInfo)
+	red := color.New(color.FgRed).Add(color.BgWhite).PrintFunc()
+	green := color.New(color.FgGreen).Add(color.BgWhite).PrintFunc()
+	green("attempting to get payload from builder l2head: %s payloadInfo: %v\n", l2head.String(), payloadInfo)
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*500)
 
 	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
@@ -146,12 +149,13 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	// select the payload from builder if possible
 	select {
 	case <-ctxTimeout.Done():
-		log.Warn("builder request failed", "err", ctxTimeout.Err())
+		red("builder request failed: %s\n", ctxTimeout.Err())
 		return envelope, nil, err
 	case builderEnvelope := <-ch:
-		log.Info("Received payload from builder", "hash", builderEnvelope.ExecutionPayload.BlockHash, "number", uint64(builderEnvelope.ExecutionPayload.BlockNumber))
-		log.Info("Engine payload", "payload", envelope.ExecutionPayload)
-		log.Info("Builder payload", "payload", builderEnvelope.ExecutionPayload)
+		green("Received payload from builder hash: %s number: %d\n",
+			builderEnvelope.ExecutionPayload.BlockHash.String(),
+			uint64(builderEnvelope.ExecutionPayload.BlockNumber))
+		// log.Info("Received payload from builder", "hash", builderEnvelope.ExecutionPayload.BlockHash, "number", uint64(builderEnvelope.ExecutionPayload.BlockNumber))
 		return envelope, builderEnvelope, err
 	}
 }
@@ -173,6 +177,8 @@ func confirmPayload(
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	var builderEnvelope *eth.ExecutionPayloadEnvelope
+	red := color.New(color.FgRed).Add(color.BgWhite).PrintFunc()
+	green := color.New(color.FgGreen).Add(color.BgWhite).PrintFunc()
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
 	if cached := agossip.Get(); cached != nil {
 		envelope = cached
@@ -189,10 +195,10 @@ func confirmPayload(
 	if builderEnvelope != nil {
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
-			log.Info("succeessfully inserted payload from builder")
+			green("succeessfully inserted payload from builder")
 			return builderEnvelope, errTyp, err
 		}
-		log.Warn("failed to insert payload from builder", "errTyp", errTyp, "error", err.Error())
+		red("failed to insert payload from builder", "errTyp", errTyp, "error", err.Error())
 	}
 
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, envelope)
