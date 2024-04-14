@@ -118,7 +118,7 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 }
 
 // makes parallel request to builder and engine to get the payload
-func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient) (
+func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient, metrics Metrics) (
 	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
 	// if builder is not enabled, return early with default path.
 	if !builder.Enabled() {
@@ -127,12 +127,15 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	}
 
 	fmt.Printf("\033[32mattempting to get payload from builder l2head: %s payloadInfo: %+v\033[0m\n", l2head.String(), payloadInfo)
-	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*200)
 
 	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
 	// start the payload request to builder api
+
 	go func() {
+		requestStart := time.Now()
 		payload, err := builder.GetPayload(ctxTimeout, l2head, log)
+		metrics.RecordBuilderRequestTime(time.Since(requestStart))
 		if err != nil {
 			log.Warn("failed to get payload from builder", "error", err.Error())
 			cancel()
@@ -171,6 +174,7 @@ func confirmPayload(
 	sequencerConductor conductor.SequencerConductor,
 	builderClient BuilderClient,
 	l2head eth.L2BlockRef,
+	metrics Metrics,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	var builderEnvelope *eth.ExecutionPayloadEnvelope
@@ -184,18 +188,31 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, builderEnvelope, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient)
+		envelope, builderEnvelope, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
+	}
+
+	if envelope != nil {
+		metrics.CountSequencedTxsBySource(len(envelope.ExecutionPayload.Transactions), "engine")
 	}
 
 	if builderEnvelope != nil {
+		metrics.CountSequencedTxsBySource(len(builderEnvelope.ExecutionPayload.Transactions), "builder")
+	}
+
+	if builderEnvelope != nil {
+		metrics.CountSequencedTxsBySource(len(builderEnvelope.ExecutionPayload.Transactions), "builder")
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
+			metrics.RecordSequencerPayloadInserted("builder")
+			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), "builder")
 			fmt.Printf("\033[32msucceessfully inserted payload from builder\033[0m\n")
 			return builderEnvelope, errTyp, err
 		}
-		fmt.Printf("\033[31mfailed to insert payload from builder errType: %s error: %s\033[0m\n")
+		fmt.Printf("\033[31mfailed to insert payload from builder errType: %v error: %s\033[0m\n", errTyp, err.Error())
 	}
 
+	metrics.RecordSequencerPayloadInserted("engine")
+	metrics.RecordPayloadGas(float64(envelope.ExecutionPayload.GasUsed), "engine")
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, envelope)
 	return envelope, errType, err
 }

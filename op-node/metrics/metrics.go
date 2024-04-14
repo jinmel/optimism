@@ -50,6 +50,7 @@ type Metricer interface {
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordDerivedBatches(batchType string)
 	CountSequencedTxs(count int)
+	CountSequencedTxsBySource(count int, source string)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
@@ -61,6 +62,10 @@ type Metricer interface {
 	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
+	RecordBuilderRequestTime(duration time.Duration)
+	RecordSequencerProfit(profit float64, source string)
+	RecordPayloadGas(profit float64, source string)
+	RecordSequencerPayloadInserted(source string)
 	Document() []metrics.DocumentedMetric
 	RecordChannelInputBytes(num int)
 	RecordHeadChannelOpened()
@@ -115,6 +120,15 @@ type Metrics struct {
 	SequencerSealingDurationSeconds prometheus.Histogram
 	SequencerSealingTotal           prometheus.Counter
 
+	SequencerBuilderRequestDurationSeconds prometheus.Histogram
+	SequencerBuilderRequestTotal           prometheus.Counter
+
+	SequencerProfit      *prometheus.GaugeVec
+	SequencerProfitTotal *prometheus.CounterVec
+
+	SequencerPayloadInserted *prometheus.CounterVec
+	SequencerPayloadGas      *prometheus.GaugeVec
+
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
 
@@ -123,6 +137,7 @@ type Metrics struct {
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
+	TransactionsSequenced      *prometheus.CounterVec
 
 	PlasmaMetrics plasma.Metricer
 
@@ -229,7 +244,13 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "transactions_sequenced_total",
 			Help:      "Count of total transactions sequenced",
 		}),
-
+		TransactionsSequenced: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "transactions_sequenced",
+			Help:      "Count of transactions sequenced by sources",
+		}, []string{
+			"source",
+		}),
 		PeerCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
@@ -369,7 +390,46 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "sequencer_sealing_total",
 			Help:      "Number of sequencer block sealing jobs",
 		}),
-
+		SequencerBuilderRequestDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_builder_request_seconds",
+			Buckets: []float64{
+				.001, .0025, .005, .01, .025, .05, 0.1, 0.25, 0.5},
+			Help: "Duration of sequencer builder requests",
+		}),
+		SequencerBuilderRequestTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencer_builder_request_total",
+			Help:      "Number of sequencer builder requests",
+		}),
+		SequencerProfit: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "sequencer_profit",
+			Help:      "Sequencer profit by source.",
+		}, []string{
+			"source",
+		}),
+		SequencerProfitTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencer_profit_total",
+			Help:      "Total sequencer profit by source.",
+		}, []string{
+			"source",
+		}),
+		SequencerPayloadInserted: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencer_payload_inserted",
+			Help:      "Count of sequencer payloads inserted to engine by source",
+		}, []string{
+			"source",
+		}),
+		SequencerPayloadGas: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "sequencer_payload_gas",
+			Help:      "Gas used by sequencer payloads by source",
+		}, []string{
+			"source",
+		}),
 		ProtocolVersionDelta: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "protocol_version_delta",
@@ -468,6 +528,10 @@ func (m *Metrics) CountSequencedTxs(count int) {
 	m.TransactionsSequencedTotal.Add(float64(count))
 }
 
+func (m *Metrics) CountSequencedTxsBySource(count int, source string) {
+	m.TransactionsSequenced.WithLabelValues(source).Add(float64(count))
+}
+
 func (m *Metrics) RecordL1ReorgDepth(d uint64) {
 	m.L1ReorgDepth.Observe(float64(d))
 }
@@ -536,6 +600,25 @@ func (m *Metrics) RecordSequencerBuildingDiffTime(duration time.Duration) {
 func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 	m.SequencerSealingTotal.Inc()
 	m.SequencerSealingDurationSeconds.Observe(float64(duration) / float64(time.Second))
+}
+
+func (m *Metrics) RecordBuilderRequestTime(duration time.Duration) {
+	m.SequencerBuilderRequestTotal.Inc()
+	m.SequencerBuilderRequestDurationSeconds.Observe(float64(duration) / float64(time.Second))
+}
+
+// RecordSequencerProfit measures the profit made by the sequencer by source: engine and external builders.
+func (m *Metrics) RecordSequencerProfit(profit float64, source string) {
+	m.SequencerProfit.WithLabelValues(source).Set(profit)
+	m.SequencerProfitTotal.WithLabelValues(source).Add(profit)
+}
+
+func (m *Metrics) RecordSequencerPayloadInserted(source string) {
+	m.SequencerPayloadInserted.WithLabelValues(source).Inc()
+}
+
+func (m *Metrics) RecordPayloadGas(gas float64, source string) {
+	m.SequencerPayloadGas.WithLabelValues(source).Set(gas)
 }
 
 // StartServer starts the metrics server on the given hostname and port.
@@ -740,4 +823,19 @@ func (n *noopMetricer) RecordDial(allow bool) {
 func (n *noopMetricer) RecordAccept(allow bool) {
 }
 func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
+}
+
+func (n *noopMetricer) RecordBuilderRequestTime(duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordSequencerProfit(profit float64, source string) {
+}
+
+func (n *noopMetricer) CountSequencedTxsBySource(count int, source string) {
+}
+
+func (n *noopMetricer) RecordSequencerPayloadInserted(source string) {
+}
+
+func (m *noopMetricer) RecordPayloadGas(gas float64, source string) {
 }
