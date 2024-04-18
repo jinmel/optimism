@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -46,7 +47,7 @@ type ExecEngine interface {
 
 type BuilderClient interface {
 	Enabled() bool
-	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error)
+	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error)
 }
 
 type EngineController struct {

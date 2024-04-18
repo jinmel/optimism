@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 
 	builderDeneb "github.com/attestantio/go-builder-client/api/deneb"
@@ -52,14 +53,14 @@ func (s *BuilderAPIClient) Enabled() bool {
 	return s.config.Endpoint != ""
 }
 
-func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
 	responsePayload := new(builderDeneb.SubmitBlockRequest)
 	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, ref.Number+1, ref.Hash)
 	log.Info("Fetching payload", "url", url)
 	header := http.Header{"Accept": {"application/json"}}
 	resp, err := s.httpClient.Get(ctx, url, nil, header)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer resp.Body.Close()
@@ -67,21 +68,23 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	log.Info("Response", "status", resp.Status, "header", resp.Header, "statuscode", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errHTTPErrorResponse
+		return nil, nil, errHTTPErrorResponse
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.Info("Payload fetched", "payload", string(bodyBytes))
 
 	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return submitBlockRequestToExecutionPayloadEnvelope(responsePayload), nil
+	profit := new(big.Int).SetUint64(responsePayload.Message.Value.Uint64())
+
+	return submitBlockRequestToExecutionPayloadEnvelope(responsePayload), profit, nil
 }
 
 func submitBlockRequestToExecutionPayloadEnvelope(request *builderDeneb.SubmitBlockRequest) *eth.ExecutionPayloadEnvelope {

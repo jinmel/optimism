@@ -120,6 +120,7 @@ type Metrics struct {
 	SequencerSealingDurationSeconds prometheus.Histogram
 	SequencerSealingTotal           prometheus.Counter
 
+	SequencerBuilderRequestLatency         prometheus.Gauge
 	SequencerBuilderRequestDurationSeconds prometheus.Histogram
 	SequencerBuilderRequestTotal           prometheus.Counter
 
@@ -390,11 +391,16 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "sequencer_sealing_total",
 			Help:      "Number of sequencer block sealing jobs",
 		}),
+		SequencerBuilderRequestLatency: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "sequencer_builder_request_latency",
+			Help:      "Latency of sequencer builder requests",
+		}),
 		SequencerBuilderRequestDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "sequencer_builder_request_seconds",
 			Buckets: []float64{
-				.001, .0025, .005, .01, .025, .05, 0.1, 0.25, 0.5},
+				.001, .0025, .005, .01, .025, .05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 			Help: "Duration of sequencer builder requests",
 		}),
 		SequencerBuilderRequestTotal: factory.NewCounter(prometheus.CounterOpts{
@@ -603,6 +609,7 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 }
 
 func (m *Metrics) RecordBuilderRequestTime(duration time.Duration) {
+	m.SequencerBuilderRequestLatency.Set(float64(duration) / float64(time.Second))
 	m.SequencerBuilderRequestTotal.Inc()
 	m.SequencerBuilderRequestDurationSeconds.Observe(float64(duration) / float64(time.Second))
 }

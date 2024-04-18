@@ -79,7 +79,6 @@ func (m *MeteredEngine) ConfirmPayload(ctx context.Context, agossip async.AsyncG
 
 	txnCount := len(payload.ExecutionPayload.Transactions)
 	m.metrics.CountSequencedTxs(txnCount)
-	m.metrics.CountSequencedTxsBySource(txnCount, "engine")
 
 	ref := m.inner.UnsafeL2Head()
 

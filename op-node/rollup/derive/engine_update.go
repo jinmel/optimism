@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -119,29 +120,33 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 
 // makes parallel request to builder and engine to get the payload
 func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder BuilderClient, metrics Metrics) (
-	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
+	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, *big.Int, error) {
 	// if builder is not enabled, return early with default path.
 	if !builder.Enabled() {
 		payload, err := eng.GetPayload(ctx, payloadInfo)
-		return payload, nil, err
+		return payload, nil, nil, err
 	}
 
 	fmt.Printf("\033[32mattempting to get payload from builder l2head: %s payloadInfo: %+v\033[0m\n", l2head.String(), payloadInfo)
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	type result struct {
+		envelope *eth.ExecutionPayloadEnvelope
+		profit   *big.Int
+	}
 
-	ch := make(chan *eth.ExecutionPayloadEnvelope, 1)
+	ch := make(chan *result, 1)
 	// start the payload request to builder api
 
 	go func() {
 		requestStart := time.Now()
-		payload, err := builder.GetPayload(ctxTimeout, l2head, log)
+		payload, profit, err := builder.GetPayload(ctxTimeout, l2head, log)
 		metrics.RecordBuilderRequestTime(time.Since(requestStart))
 		if err != nil {
 			log.Warn("failed to get payload from builder", "error", err.Error())
 			cancel()
 			return
 		}
-		ch <- payload
+		ch <- &result{envelope: payload, profit: profit}
 	}()
 
 	envelope, err := eng.GetPayload(ctx, payloadInfo)
@@ -150,13 +155,13 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	select {
 	case <-ctxTimeout.Done():
 		fmt.Printf("\033[31mbuilder request failed: %s\033[0m\n", ctxTimeout.Err())
-		return envelope, nil, err
-	case builderEnvelope := <-ch:
+		return envelope, nil, nil, err
+	case result := <-ch:
 		fmt.Printf("\033[32mReceived payload from builder hash: %s number: %d\033[0m\n",
-			builderEnvelope.ExecutionPayload.BlockHash.String(),
-			uint64(builderEnvelope.ExecutionPayload.BlockNumber))
+			result.envelope.ExecutionPayload.BlockHash.String(),
+			uint64(result.envelope.ExecutionPayload.BlockNumber))
 		// log.Info("Received payload from builder", "hash", builderEnvelope.ExecutionPayload.BlockHash, "number", uint64(builderEnvelope.ExecutionPayload.BlockNumber))
-		return envelope, builderEnvelope, err
+		return envelope, result.envelope, result.profit, err
 	}
 }
 
@@ -178,6 +183,7 @@ func confirmPayload(
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var envelope *eth.ExecutionPayloadEnvelope
 	var builderEnvelope *eth.ExecutionPayloadEnvelope
+	var profit *big.Int
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
 	if cached := agossip.Get(); cached != nil {
 		envelope = cached
@@ -188,31 +194,30 @@ func confirmPayload(
 			"parent", envelope.ExecutionPayload.ParentHash,
 			"txs", len(envelope.ExecutionPayload.Transactions))
 	} else {
-		envelope, builderEnvelope, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
+		envelope, builderEnvelope, profit, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
 	}
 
 	if envelope != nil {
+		metrics.RecordPayloadGas(float64(envelope.ExecutionPayload.GasUsed), "engine")
 		metrics.CountSequencedTxsBySource(len(envelope.ExecutionPayload.Transactions), "engine")
 	}
 
 	if builderEnvelope != nil {
-		metrics.CountSequencedTxsBySource(len(builderEnvelope.ExecutionPayload.Transactions), "builder")
-	}
-
-	if builderEnvelope != nil {
+		metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), "builder")
 		metrics.CountSequencedTxsBySource(len(builderEnvelope.ExecutionPayload.Transactions), "builder")
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
+			metrics.RecordSequencerProfit(float64(profit.Uint64()), "builder")
 			metrics.RecordSequencerPayloadInserted("builder")
-			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), "builder")
 			fmt.Printf("\033[32msucceessfully inserted payload from builder\033[0m\n")
 			return builderEnvelope, errTyp, err
 		}
 		fmt.Printf("\033[31mfailed to insert payload from builder errType: %v error: %s\033[0m\n", errTyp, err.Error())
 	}
 
+	// no profit for engine payload.
+	metrics.RecordSequencerProfit(float64(0), "engine")
 	metrics.RecordSequencerPayloadInserted("engine")
-	metrics.RecordPayloadGas(float64(envelope.ExecutionPayload.GasUsed), "engine")
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, envelope)
 	return envelope, errType, err
 }

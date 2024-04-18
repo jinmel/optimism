@@ -26,6 +26,7 @@ type Metrics interface {
 	RecordBuilderRequestTime(duration time.Duration)
 	RecordSequencerPayloadInserted(source string)
 	RecordPayloadGas(gas float64, source string)
+	RecordSequencerProfit(profit float64, source string)
 	CountSequencedTxsBySource(count int, source string)
 }
 
