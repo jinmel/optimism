@@ -6,12 +6,12 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -189,14 +189,39 @@ type mockGameCaller struct {
 	balanceErr       error
 	balance          *big.Int
 	balanceAddr      common.Address
+	withdrawalsCalls int
+	withdrawalsErr   error
+	withdrawals      []*contracts.WithdrawalRequest
+	resolvedErr      error
+	resolved         map[int]bool
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (uint64, common.Hash, types.GameStatus, uint64, error) {
+func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ common.Address, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	m.withdrawalsCalls++
+	if m.withdrawalsErr != nil {
+		return nil, m.withdrawalsErr
+	}
+	if m.withdrawals != nil {
+		return m.withdrawals, nil
+	}
+	return []*contracts.WithdrawalRequest{
+		{
+			Timestamp: big.NewInt(1),
+			Amount:    big.NewInt(2),
+		},
+		{
+			Timestamp: big.NewInt(3),
+			Amount:    big.NewInt(4),
+		},
+	}, nil
+}
+
+func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (common.Hash, uint64, common.Hash, gameTypes.GameStatus, uint64, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
-		return 0, common.Hash{}, 0, 0, m.metadataErr
+		return common.Hash{}, 0, common.Hash{}, 0, 0, m.metadataErr
 	}
-	return 0, mockRootClaim, 0, 0, nil
+	return common.Hash{0xaa}, 0, mockRootClaim, 0, 0, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
@@ -229,6 +254,17 @@ func (m *mockGameCaller) GetBalance(_ context.Context, _ rpcblock.Block) (*big.I
 		return nil, common.Address{}, m.balanceErr
 	}
 	return m.balance, m.balanceAddr, nil
+}
+
+func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {
+	if m.resolvedErr != nil {
+		return nil, m.resolvedErr
+	}
+	resolved := make([]bool, len(claims))
+	for i, claim := range claims {
+		resolved[i] = m.resolved[claim.ContractIndex]
+	}
+	return resolved, nil
 }
 
 type mockEnricher struct {

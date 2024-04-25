@@ -42,6 +42,9 @@ type Service struct {
 	forecast     *forecast
 	bonds        *bonds.Bonds
 	game         *extract.GameCallerCreator
+	resolutions  *ResolutionMonitor
+	claims       *ClaimMonitor
+	withdrawals  *WithdrawalMonitor
 	rollupClient *sources.RollupClient
 	validator    *outputValidator
 
@@ -85,6 +88,10 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
 
+	s.initClaimMonitor(cfg)
+	s.initResolutionMonitor()
+	s.initWithdrawalMonitor()
+
 	s.initOutputValidator()   // Must be called before initForecast
 	s.initGameCallerCreator() // Must be called before initForecast
 
@@ -102,8 +109,20 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
+func (s *Service) initClaimMonitor(cfg *config.Config) {
+	s.claims = NewClaimMonitor(s.logger, s.cl, cfg.HonestActors, s.metrics)
+}
+
+func (s *Service) initResolutionMonitor() {
+	s.resolutions = NewResolutionMonitor(s.logger, s.metrics, s.cl)
+}
+
+func (s *Service) initWithdrawalMonitor() {
+	s.withdrawals = NewWithdrawalMonitor(s.logger, s.metrics)
+}
+
 func (s *Service) initOutputValidator() {
-	s.validator = newOutputValidator(s.metrics, s.rollupClient)
+	s.validator = newOutputValidator(s.logger, s.metrics, s.rollupClient)
 }
 
 func (s *Service) initGameCallerCreator() {
@@ -115,9 +134,16 @@ func (s *Service) initDelayCalculator() {
 }
 
 func (s *Service) initExtractor() {
-	s.extractor = extract.NewExtractor(s.logger, s.game.CreateContract, s.factoryContract.GetGamesAtOrAfter,
+	s.extractor = extract.NewExtractor(
+		s.logger,
+		s.game.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
+		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher
+		extract.NewWithdrawalsEnricher(),
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 	)
 }
 
@@ -126,7 +152,7 @@ func (s *Service) initForecast(cfg *config.Config) {
 }
 
 func (s *Service) initBonds() {
-	s.bonds = bonds.NewBonds(s.logger, s.metrics)
+	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
@@ -183,11 +209,8 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 }
 
 func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress,
+	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
-	if err != nil {
-		return fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
-	}
 	s.factoryContract = factoryContract
 	return nil
 }
@@ -209,6 +232,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.delays.RecordClaimResolutionDelayMax,
 		s.forecast.Forecast,
 		s.bonds.CheckBonds,
+		s.resolutions.CheckResolutions,
+		s.claims.CheckClaims,
+		s.withdrawals.CheckWithdrawals,
 		s.extractor.Extract,
 		s.l1Client.BlockNumber,
 		blockHashFetcher,

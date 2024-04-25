@@ -12,8 +12,10 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 )
 
-type CreateGameCaller func(game gameTypes.GameMetadata) (GameCaller, error)
-type FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
+type (
+	CreateGameCaller   func(game gameTypes.GameMetadata) (GameCaller, error)
+	FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
+)
 
 type Enricher interface {
 	Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error
@@ -51,7 +53,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 			e.logger.Error("Failed to create game caller", "err", err)
 			continue
 		}
-		l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
+		l1Head, l2BlockNum, rootClaim, status, duration, err := caller.GetGameMetadata(ctx, rpcblock.ByHash(blockHash))
 		if err != nil {
 			e.logger.Error("Failed to fetch game metadata", "err", err)
 			continue
@@ -61,13 +63,18 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 			e.logger.Error("Failed to fetch game claims", "err", err)
 			continue
 		}
+		enrichedClaims := make([]monTypes.EnrichedClaim, len(claims))
+		for i, claim := range claims {
+			enrichedClaims[i] = monTypes.EnrichedClaim{Claim: claim}
+		}
 		enrichedGame := &monTypes.EnrichedGameData{
-			GameMetadata:  game,
-			L2BlockNumber: l2BlockNum,
-			RootClaim:     rootClaim,
-			Status:        status,
-			Duration:      duration,
-			Claims:        claims,
+			GameMetadata:     game,
+			L1Head:           l1Head,
+			L2BlockNumber:    l2BlockNum,
+			RootClaim:        rootClaim,
+			Status:           status,
+			MaxClockDuration: duration,
+			Claims:           enrichedClaims,
 		}
 		if err := e.applyEnrichers(ctx, blockHash, caller, enrichedGame); err != nil {
 			e.logger.Error("Failed to enrich game", "err", err)

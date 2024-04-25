@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -29,13 +30,17 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: faultTypes.CannonGameType, Proxy: fdgAddr},
 		},
 		{
+			name: "validAsteriscGameType",
+			game: types.GameMetadata{GameType: faultTypes.AsteriscGameType, Proxy: fdgAddr},
+		},
+		{
 			name: "validAlphabetGameType",
 			game: types.GameMetadata{GameType: faultTypes.AlphabetGameType, Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
-			game:        types.GameMetadata{GameType: 2, Proxy: fdgAddr},
-			expectedErr: fmt.Errorf("unsupported game type: 2"),
+			game:        types.GameMetadata{GameType: 3, Proxy: fdgAddr},
+			expectedErr: fmt.Errorf("unsupported game type: 3"),
 		},
 	}
 
@@ -71,6 +76,7 @@ func setupMetadataLoaderTest(t *testing.T) (*batching.MultiCaller, *mockCacheMet
 type mockCacheMetrics struct {
 	cacheAddCalls int
 	cacheGetCalls int
+	*contractMetrics.NoopMetrics
 }
 
 func (m *mockCacheMetrics) CacheAdd(_ string, _ int, _ bool) {

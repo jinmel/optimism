@@ -217,7 +217,7 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 		types.GameStatusChallengerWon,
 		types.GameStatusChallengerWon,
 	}
-	claims := [][]faultTypes.Claim{
+	claims := [][]monTypes.EnrichedClaim{
 		createDeepClaimList()[:1],
 		createDeepClaimList()[:2],
 		createDeepClaimList()[:2],
@@ -289,31 +289,37 @@ func (m *mockForecastMetrics) RecordClaimResolutionDelayMax(delay float64) {
 	m.claimResolutionDelayMax = delay
 }
 
-func createDeepClaimList() []faultTypes.Claim {
-	return []faultTypes.Claim{
+func createDeepClaimList() []monTypes.EnrichedClaim {
+	return []monTypes.EnrichedClaim{
 		{
-			ClaimData: faultTypes.ClaimData{
-				Position: faultTypes.NewPosition(0, big.NewInt(0)),
+			Claim: faultTypes.Claim{
+				ClaimData: faultTypes.ClaimData{
+					Position: faultTypes.NewPosition(0, big.NewInt(0)),
+				},
+				ContractIndex:       0,
+				ParentContractIndex: math.MaxInt64,
+				Claimant:            common.HexToAddress("0x111111"),
 			},
-			ContractIndex:       0,
-			ParentContractIndex: math.MaxInt64,
-			Claimant:            common.HexToAddress("0x111111"),
 		},
 		{
-			ClaimData: faultTypes.ClaimData{
-				Position: faultTypes.NewPosition(1, big.NewInt(0)),
+			Claim: faultTypes.Claim{
+				ClaimData: faultTypes.ClaimData{
+					Position: faultTypes.NewPosition(1, big.NewInt(0)),
+				},
+				ContractIndex:       1,
+				ParentContractIndex: 0,
+				Claimant:            common.HexToAddress("0x222222"),
 			},
-			ContractIndex:       1,
-			ParentContractIndex: 0,
-			Claimant:            common.HexToAddress("0x222222"),
 		},
 		{
-			ClaimData: faultTypes.ClaimData{
-				Position: faultTypes.NewPosition(2, big.NewInt(0)),
+			Claim: faultTypes.Claim{
+				ClaimData: faultTypes.ClaimData{
+					Position: faultTypes.NewPosition(2, big.NewInt(0)),
+				},
+				ContractIndex:       2,
+				ParentContractIndex: 1,
+				Claimant:            common.HexToAddress("0x111111"),
 			},
-			ContractIndex:       2,
-			ParentContractIndex: 1,
-			Claimant:            common.HexToAddress("0x111111"),
 		},
 	}
 }
@@ -323,7 +329,7 @@ type stubOutputValidator struct {
 	err   error
 }
 
-func (s *stubOutputValidator) CheckRootAgreement(_ context.Context, _ uint64, rootClaim common.Hash) (bool, common.Hash, error) {
+func (s *stubOutputValidator) CheckRootAgreement(_ context.Context, _ uint64, _ uint64, rootClaim common.Hash) (bool, common.Hash, error) {
 	s.calls++
 	if s.err != nil {
 		return false, common.Hash{}, s.err
