@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -42,8 +43,8 @@ type Driver struct {
 type nilBuilderClient struct {
 }
 
-func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-	return nil, nil
+func (f *nilBuilderClient) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
+	return nil, nil, nil
 }
 
 func (f *nilBuilderClient) Enabled() bool {
