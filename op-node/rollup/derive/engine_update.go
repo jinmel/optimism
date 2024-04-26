@@ -128,7 +128,8 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	}
 
 	fmt.Printf("\033[32mattempting to get payload from builder l2head: %s payloadInfo: %+v\033[0m\n", l2head.String(), payloadInfo)
-	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*200)
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*2000)
+	defer cancel()
 	type result struct {
 		envelope *eth.ExecutionPayloadEnvelope
 		profit   *big.Int
@@ -155,6 +156,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	select {
 	case <-ctxTimeout.Done():
 		fmt.Printf("\033[31mbuilder request failed: %s\033[0m\n", ctxTimeout.Err())
+		metrics.RecordBuilderRequestFail()
 		return envelope, nil, nil, err
 	case result := <-ch:
 		fmt.Printf("\033[32mReceived payload from builder hash: %s number: %d\033[0m\n",

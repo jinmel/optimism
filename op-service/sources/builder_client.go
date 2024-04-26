@@ -53,6 +53,11 @@ func (s *BuilderAPIClient) Enabled() bool {
 	return s.config.Endpoint != ""
 }
 
+type httpErrorResp struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
 	responsePayload := new(builderDeneb.SubmitBlockRequest)
 	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, ref.Number+1, ref.Hash)
@@ -67,16 +72,20 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 
 	log.Info("Response", "status", resp.Status, "header", resp.Header, "statuscode", resp.StatusCode)
 
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		var errResp httpErrorResp
+		err = json.Unmarshal(bodyBytes, &errResp)
+		if err != nil {
+			log.Error("Failed to unmarshal error response", "error", err)
+		}
+		log.Error("HTTP error response", "status", resp.Status, "code", errResp.Code, "message", errResp.Message)
 		return nil, nil, errHTTPErrorResponse
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	log.Info("Payload fetched", "payload", string(bodyBytes))
 
 	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
 		return nil, nil, err

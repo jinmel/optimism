@@ -38,6 +38,7 @@ type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 
 	RecordBuilderRequestTime(d time.Duration)
+	RecordBuilderRequestFail()
 	RecordSequencerProfit(p float64, s string)
 	RecordSequencerPayloadInserted(s string)
 	RecordPayloadGas(gas float64, s string)

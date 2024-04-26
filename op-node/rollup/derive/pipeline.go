@@ -24,6 +24,7 @@ type Metrics interface {
 	RecordFrame()
 	RecordDerivedBatches(batchType string)
 	RecordBuilderRequestTime(duration time.Duration)
+	RecordBuilderRequestFail()
 	RecordSequencerPayloadInserted(source string)
 	RecordPayloadGas(gas float64, source string)
 	RecordSequencerProfit(profit float64, source string)
