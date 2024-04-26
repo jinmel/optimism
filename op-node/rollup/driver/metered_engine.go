@@ -16,6 +16,7 @@ import (
 type EngineMetrics interface {
 	RecordSequencingError()
 	CountSequencedTxs(count int)
+	CountSequencedTxsBySource(count int, source string)
 
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)

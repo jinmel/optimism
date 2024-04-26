@@ -88,6 +88,10 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
+	// For Payload Attributes
+	l1OriginSelector *L1OriginSelector
+	attrBuilder      *derive.FetchingAttributesBuilder
+
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
 
@@ -330,26 +334,22 @@ func (s *Driver) eventLoop() {
 		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
-			if s.syncCfg.SyncMode == sync.CLSync || !s.engineController.IsEngineSyncing() {
-				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-				s.derivation.AddUnsafePayload(envelope)
-				s.metrics.RecordReceivedUnsafePayload(envelope)
-				reqStep()
-			} else if s.syncCfg.SyncMode == sync.ELSync {
-				ref, err := derive.PayloadToBlockRef(s.config, envelope.ExecutionPayload)
-				if err != nil {
-					s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
-					continue
-				}
-				if ref.Number <= s.engineController.UnsafeL2Head().Number {
-					continue
-				}
-				s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
-					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
-				}
-				s.logSyncProgress("unsafe payload from sequencer while in EL sync")
+			ref, err := derive.PayloadToBlockRef(s.config, envelope.ExecutionPayload)
+			if err != nil {
+				s.log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
+				continue
 			}
+			if ref.Number <= s.engineController.UnsafeL2Head().Number {
+				continue
+			}
+			s.log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
+			if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
+				s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
+			}
+
+			// Derive and broadcast attributes
+			s.PublishL2Attributes(s.driverCtx, ref)
+			s.logSyncProgress("unsafe payload from sequencer while in EL sync")
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
@@ -451,6 +451,34 @@ func (s *Driver) eventLoop() {
 			return
 		}
 	}
+}
+
+// Invokes derivation pipeline to prepare the payload attributes for the next block.
+func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef) error {
+	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2head)
+	if err != nil {
+		d.log.Error("Error finding next L1 Origin", "err", err)
+		return err
+	}
+
+	fetchCtx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	defer cancel()
+
+	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2head, l1Origin.ID())
+	if err != nil {
+		d.log.Error("Error preparing payload attributes", "err", err)
+		return err
+	}
+
+	withParent := derive.NewAttributesWithParent(attrs, l2head, false)
+	fmt.Printf("\033[32mPublishing L2 attributes %+v\033[0m\n", withParent)
+	err = d.network.PublishL2Attributes(ctx, withParent)
+	if err != nil {
+		d.log.Error("Error publishing L2 attributes", "err", err)
+		return err
+	}
+
+	return nil
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.

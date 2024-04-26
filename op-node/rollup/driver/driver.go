@@ -37,6 +37,12 @@ type Metrics interface {
 
 	RecordL1ReorgDepth(d uint64)
 
+	RecordBuilderRequestTime(d time.Duration)
+	RecordBuilderRequestFail()
+	RecordSequencerProfit(p float64, s string)
+	RecordSequencerPayloadInserted(s string)
+	RecordPayloadGas(gas float64, s string)
+
 	EngineMetrics
 	L1FetcherMetrics
 	SequencerMetrics
@@ -87,6 +93,7 @@ type SequencerIface interface {
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	PublishL2Attributes(ctx context.Context, attributes *derive.AttributesWithParent) error
 }
 
 type AltSync interface {
@@ -119,6 +126,7 @@ func NewDriver(
 	cfg *rollup.Config,
 	l2 L2Chain,
 	l1 L1Chain,
+	builder derive.BuilderClient,
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -136,7 +144,7 @@ func NewDriver(
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
+	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, builder)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, engine, metrics, syncCfg, safeHeadListener)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
@@ -172,5 +180,7 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
+		l1OriginSelector:   findL1Origin,
+		attrBuilder:        attrBuilder,
 	}
 }

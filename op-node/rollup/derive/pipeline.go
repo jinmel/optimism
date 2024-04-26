@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -22,6 +23,12 @@ type Metrics interface {
 	RecordChannelTimedOut()
 	RecordFrame()
 	RecordDerivedBatches(batchType string)
+	RecordBuilderRequestTime(duration time.Duration)
+	RecordBuilderRequestFail()
+	RecordSequencerPayloadInserted(source string)
+	RecordPayloadGas(gas float64, source string)
+	RecordSequencerProfit(profit float64, source string)
+	CountSequencedTxsBySource(count int, source string)
 }
 
 type L1Fetcher interface {

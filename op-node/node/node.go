@@ -2,9 +2,13 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/r3labs/sse"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -51,14 +56,15 @@ type OpNode struct {
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
-	l2Driver  *driver.Driver        // L2 Engine to Sync
-	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
-	server    *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode   *p2p.NodeP2P          // P2P node functionality
-	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
-	tracer    Tracer                // tracer to get events for testing/debugging
-	runCfg    *RuntimeConfig        // runtime configurables
+	l1Source        *sources.L1Client         // L1 Client to fetch data from
+	l2Driver        *driver.Driver            // L2 Engine to Sync
+	l2Source        *sources.EngineClient     // L2 Execution Engine RPC bindings
+	l2BuilderSource *sources.BuilderAPIClient // L2 Builder API bindings
+	server          *rpcServer                // RPC server hosting the rollup-node API
+	p2pNode         *p2p.NodeP2P              // P2P node functionality
+	p2pSigner       p2p.Signer                // p2p gogssip application messages will be signed with this signer
+	tracer          Tracer                    // tracer to get events for testing/debugging
+	runCfg          *RuntimeConfig            // runtime configurables
 
 	safeDB closableSafeDB
 
@@ -82,6 +88,10 @@ type OpNode struct {
 	// cancels execution prematurely, e.g. to halt. This may be nil.
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
+
+	httpEventStream          *sse.Server
+	httpEventStreamServer    *httputil.HTTPServer
+	httpEventStreamServerCtx context.Context
 }
 
 // The OpNode handles incoming gossip
@@ -146,6 +156,10 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
+	}
+
+	if err := n.initHTTPEventStreamServer(cfg); err != nil {
+		return fmt.Errorf("failed to init the http event stream server: %w", err)
 	}
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
@@ -365,7 +379,7 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
-	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
+	rpcClient, rpcCfg, bCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
@@ -376,6 +390,11 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
+
+	if bCfg.Endpoint != "" {
+		n.log.Info("L2 Builder API enabled", "endpoint", bCfg.Endpoint)
+	}
+	n.l2BuilderSource = sources.NewBuilderAPIClient(snapshotLog, bCfg)
 
 	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
 		return err
@@ -402,7 +421,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.l2BuilderSource, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
 	return nil
 }
 
@@ -423,6 +442,25 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
 	n.server = server
+	return nil
+}
+
+func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
+	server := sse.New()
+	server.CreateStream("payload_attributes")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/events", server.HTTPHandler)
+	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
+
+	var err error
+	n.httpEventStreamServer, err = httputil.StartHTTPServer(addr, mux)
+	if err != nil {
+		return fmt.Errorf("failed to start http event stream server: %w", err)
+	}
+	n.log.Info("Started HTTP event stream server", "addr", addr)
+	n.httpEventStream = server
+
 	return nil
 }
 
@@ -575,6 +613,21 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	return nil
 }
 
+func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error {
+	for i, tx := range attrs.Attributes().Transactions {
+		n.log.Info("Transaction", "index", i, "tx", tx)
+	}
+	builderAttrs := attrs.ToBuilderPayloadAttributes()
+	jsonBytes, err := json.Marshal(builderAttrs)
+	if err != nil {
+		n.log.Warn("failed to marshal payload attributes", "err", err)
+		return err
+	}
+	n.log.Info("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
+	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
+	return nil
+}
+
 func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
@@ -715,6 +768,12 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.metricsSrv != nil {
 		if err := n.metricsSrv.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
+		}
+	}
+
+	if n.httpEventStreamServer != nil {
+		if err := n.httpEventStreamServer.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close http event stream server: %w", err))
 		}
 	}
 
