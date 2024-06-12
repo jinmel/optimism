@@ -39,6 +39,11 @@ func (bs *BuilderService) initFromCLIConfig(ctx context.Context,
 	if err := bs.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
+
+	if err := bs.initRPCClients(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to start eth RPC clients: %w", err)
+	}
+
 	return nil
 }
 
