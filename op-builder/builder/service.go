@@ -14,7 +14,7 @@ import (
 
 type BuilderService struct {
 	Log     log.Logger
-	Clients map[string]*ethclient.Client // chainId -> ethclient.Client
+	Clients map[string]*ethclient.Client
 
 	Version   string
 	rpcServer *oprpc.Server
@@ -58,7 +58,7 @@ func (bs *BuilderService) Stop(ctx context.Context) error {
 
 	if result == nil {
 		bs.stopped.Store(true)
-		bs.Log.Info("Batch Submitter stopped")
+		bs.Log.Info("interop builder stopped")
 	}
 
 	return nil
@@ -75,6 +75,11 @@ func (bs *BuilderService) initRPCServer(cfg *CLIConfig) error {
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
 	)
+
+	backend := NewBackend(bs.Clients)
+	graphAPI := NewInteropAPI(backend)
+	server.AddAPI(GetInteropAPI(graphAPI))
+	bs.Log.Info("BundleGraph API Enabled")
 
 	bs.Log.Info("Starting RPC server", "addr", cfg.RPC.ListenAddr, "port", cfg.RPC.ListenPort)
 	if err := server.Start(); err != nil {
