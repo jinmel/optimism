@@ -6,7 +6,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-builder/builder"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -25,7 +24,7 @@ func main() {
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
-	app.Flags = cliapp.ProtectFlags(flags.Flags)
+	app.Flags = cliapp.ProtectFlags(builder.Flags)
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-builder"
 	app.Usage = "interop block building coordination service standalone"
