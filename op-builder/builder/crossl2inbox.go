@@ -1,0 +1,532 @@
+// Code generated - DO NOT EDIT.
+// This file is a generated binding and any manual changes will be lost.
+
+package builder
+
+import (
+	"errors"
+	"math/big"
+	"strings"
+
+	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = ethereum.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+	_ = abi.ConvertType
+)
+
+// ICrossL2InboxIdentifier is an auto generated low-level Go binding around an user-defined struct.
+type ICrossL2InboxIdentifier struct {
+	Origin      common.Address
+	BlockNumber *big.Int
+	LogIndex    *big.Int
+	Timestamp   *big.Int
+	ChainId     *big.Int
+}
+
+// CrossL2InboxMetaData contains all meta data concerning the CrossL2Inbox contract.
+var CrossL2InboxMetaData = &bind.MetaData{
+	ABI: "[{\"inputs\":[],\"name\":\"blockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"chainId\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"origin\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"logIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"chainId\",\"type\":\"uint256\"}],\"internalType\":\"structICrossL2Inbox.Identifier\",\"name\":\"_id\",\"type\":\"tuple\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"}],\"name\":\"executeMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"logIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"origin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"encodedId\",\"type\":\"bytes\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"message\",\"type\":\"bytes\"}],\"name\":\"ExecutingMessage\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"InvalidChainId\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidTimestamp\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NotEntered\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"TargetCallFailed\",\"type\":\"error\"}]",
+}
+
+// CrossL2InboxABI is the input ABI used to generate the binding from.
+// Deprecated: Use CrossL2InboxMetaData.ABI instead.
+var CrossL2InboxABI = CrossL2InboxMetaData.ABI
+
+// CrossL2Inbox is an auto generated Go binding around an Ethereum contract.
+type CrossL2Inbox struct {
+	CrossL2InboxCaller     // Read-only binding to the contract
+	CrossL2InboxTransactor // Write-only binding to the contract
+	CrossL2InboxFilterer   // Log filterer for contract events
+}
+
+// CrossL2InboxCaller is an auto generated read-only Go binding around an Ethereum contract.
+type CrossL2InboxCaller struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// CrossL2InboxTransactor is an auto generated write-only Go binding around an Ethereum contract.
+type CrossL2InboxTransactor struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// CrossL2InboxFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
+type CrossL2InboxFilterer struct {
+	contract *bind.BoundContract // Generic contract wrapper for the low level calls
+}
+
+// CrossL2InboxSession is an auto generated Go binding around an Ethereum contract,
+// with pre-set call and transact options.
+type CrossL2InboxSession struct {
+	Contract     *CrossL2Inbox     // Generic contract binding to set the session for
+	CallOpts     bind.CallOpts     // Call options to use throughout this session
+	TransactOpts bind.TransactOpts // Transaction auth options to use throughout this session
+}
+
+// CrossL2InboxCallerSession is an auto generated read-only Go binding around an Ethereum contract,
+// with pre-set call options.
+type CrossL2InboxCallerSession struct {
+	Contract *CrossL2InboxCaller // Generic contract caller binding to set the session for
+	CallOpts bind.CallOpts       // Call options to use throughout this session
+}
+
+// CrossL2InboxTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
+// with pre-set transact options.
+type CrossL2InboxTransactorSession struct {
+	Contract     *CrossL2InboxTransactor // Generic contract transactor binding to set the session for
+	TransactOpts bind.TransactOpts       // Transaction auth options to use throughout this session
+}
+
+// CrossL2InboxRaw is an auto generated low-level Go binding around an Ethereum contract.
+type CrossL2InboxRaw struct {
+	Contract *CrossL2Inbox // Generic contract binding to access the raw methods on
+}
+
+// CrossL2InboxCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
+type CrossL2InboxCallerRaw struct {
+	Contract *CrossL2InboxCaller // Generic read-only contract binding to access the raw methods on
+}
+
+// CrossL2InboxTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
+type CrossL2InboxTransactorRaw struct {
+	Contract *CrossL2InboxTransactor // Generic write-only contract binding to access the raw methods on
+}
+
+// NewCrossL2Inbox creates a new instance of CrossL2Inbox, bound to a specific deployed contract.
+func NewCrossL2Inbox(address common.Address, backend bind.ContractBackend) (*CrossL2Inbox, error) {
+	contract, err := bindCrossL2Inbox(address, backend, backend, backend)
+	if err != nil {
+		return nil, err
+	}
+	return &CrossL2Inbox{CrossL2InboxCaller: CrossL2InboxCaller{contract: contract}, CrossL2InboxTransactor: CrossL2InboxTransactor{contract: contract}, CrossL2InboxFilterer: CrossL2InboxFilterer{contract: contract}}, nil
+}
+
+// NewCrossL2InboxCaller creates a new read-only instance of CrossL2Inbox, bound to a specific deployed contract.
+func NewCrossL2InboxCaller(address common.Address, caller bind.ContractCaller) (*CrossL2InboxCaller, error) {
+	contract, err := bindCrossL2Inbox(address, caller, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &CrossL2InboxCaller{contract: contract}, nil
+}
+
+// NewCrossL2InboxTransactor creates a new write-only instance of CrossL2Inbox, bound to a specific deployed contract.
+func NewCrossL2InboxTransactor(address common.Address, transactor bind.ContractTransactor) (*CrossL2InboxTransactor, error) {
+	contract, err := bindCrossL2Inbox(address, nil, transactor, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &CrossL2InboxTransactor{contract: contract}, nil
+}
+
+// NewCrossL2InboxFilterer creates a new log filterer instance of CrossL2Inbox, bound to a specific deployed contract.
+func NewCrossL2InboxFilterer(address common.Address, filterer bind.ContractFilterer) (*CrossL2InboxFilterer, error) {
+	contract, err := bindCrossL2Inbox(address, nil, nil, filterer)
+	if err != nil {
+		return nil, err
+	}
+	return &CrossL2InboxFilterer{contract: contract}, nil
+}
+
+// bindCrossL2Inbox binds a generic wrapper to an already deployed contract.
+func bindCrossL2Inbox(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
+	parsed, err := CrossL2InboxMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_CrossL2Inbox *CrossL2InboxRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _CrossL2Inbox.Contract.CrossL2InboxCaller.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_CrossL2Inbox *CrossL2InboxRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.CrossL2InboxTransactor.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_CrossL2Inbox *CrossL2InboxRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.CrossL2InboxTransactor.contract.Transact(opts, method, params...)
+}
+
+// Call invokes the (constant) contract method with params as input values and
+// sets the output to result. The result type might be a single field for simple
+// returns, a slice of interfaces for anonymous returns and a struct for named
+// returns.
+func (_CrossL2Inbox *CrossL2InboxCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _CrossL2Inbox.Contract.contract.Call(opts, result, method, params...)
+}
+
+// Transfer initiates a plain transaction to move funds to the contract, calling
+// its default method if one is available.
+func (_CrossL2Inbox *CrossL2InboxTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.contract.Transfer(opts)
+}
+
+// Transact invokes the (paid) contract method with params as input values.
+func (_CrossL2Inbox *CrossL2InboxTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.contract.Transact(opts, method, params...)
+}
+
+// BlockNumber is a free data retrieval call binding the contract method 0x57e871e7.
+//
+// Solidity: function blockNumber() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCaller) BlockNumber(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "blockNumber")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// BlockNumber is a free data retrieval call binding the contract method 0x57e871e7.
+//
+// Solidity: function blockNumber() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxSession) BlockNumber() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.BlockNumber(&_CrossL2Inbox.CallOpts)
+}
+
+// BlockNumber is a free data retrieval call binding the contract method 0x57e871e7.
+//
+// Solidity: function blockNumber() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) BlockNumber() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.BlockNumber(&_CrossL2Inbox.CallOpts)
+}
+
+// ChainId is a free data retrieval call binding the contract method 0x9a8a0592.
+//
+// Solidity: function chainId() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCaller) ChainId(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "chainId")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// ChainId is a free data retrieval call binding the contract method 0x9a8a0592.
+//
+// Solidity: function chainId() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxSession) ChainId() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.ChainId(&_CrossL2Inbox.CallOpts)
+}
+
+// ChainId is a free data retrieval call binding the contract method 0x9a8a0592.
+//
+// Solidity: function chainId() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) ChainId() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.ChainId(&_CrossL2Inbox.CallOpts)
+}
+
+// LogIndex is a free data retrieval call binding the contract method 0xda99f729.
+//
+// Solidity: function logIndex() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCaller) LogIndex(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "logIndex")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// LogIndex is a free data retrieval call binding the contract method 0xda99f729.
+//
+// Solidity: function logIndex() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxSession) LogIndex() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.LogIndex(&_CrossL2Inbox.CallOpts)
+}
+
+// LogIndex is a free data retrieval call binding the contract method 0xda99f729.
+//
+// Solidity: function logIndex() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) LogIndex() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.LogIndex(&_CrossL2Inbox.CallOpts)
+}
+
+// Origin is a free data retrieval call binding the contract method 0x938b5f32.
+//
+// Solidity: function origin() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxCaller) Origin(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "origin")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// Origin is a free data retrieval call binding the contract method 0x938b5f32.
+//
+// Solidity: function origin() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxSession) Origin() (common.Address, error) {
+	return _CrossL2Inbox.Contract.Origin(&_CrossL2Inbox.CallOpts)
+}
+
+// Origin is a free data retrieval call binding the contract method 0x938b5f32.
+//
+// Solidity: function origin() view returns(address)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) Origin() (common.Address, error) {
+	return _CrossL2Inbox.Contract.Origin(&_CrossL2Inbox.CallOpts)
+}
+
+// Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
+//
+// Solidity: function timestamp() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCaller) Timestamp(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "timestamp")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
+//
+// Solidity: function timestamp() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxSession) Timestamp() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.Timestamp(&_CrossL2Inbox.CallOpts)
+}
+
+// Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
+//
+// Solidity: function timestamp() view returns(uint256)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) Timestamp() (*big.Int, error) {
+	return _CrossL2Inbox.Contract.Timestamp(&_CrossL2Inbox.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_CrossL2Inbox *CrossL2InboxCaller) Version(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _CrossL2Inbox.contract.Call(opts, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_CrossL2Inbox *CrossL2InboxSession) Version() (string, error) {
+	return _CrossL2Inbox.Contract.Version(&_CrossL2Inbox.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_CrossL2Inbox *CrossL2InboxCallerSession) Version() (string, error) {
+	return _CrossL2Inbox.Contract.Version(&_CrossL2Inbox.CallOpts)
+}
+
+// ExecuteMessage is a paid mutator transaction binding the contract method 0x5984c53e.
+//
+// Solidity: function executeMessage((address,uint256,uint256,uint256,uint256) _id, address _target, bytes _message) payable returns()
+func (_CrossL2Inbox *CrossL2InboxTransactor) ExecuteMessage(opts *bind.TransactOpts, _id ICrossL2InboxIdentifier, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _CrossL2Inbox.contract.Transact(opts, "executeMessage", _id, _target, _message)
+}
+
+// ExecuteMessage is a paid mutator transaction binding the contract method 0x5984c53e.
+//
+// Solidity: function executeMessage((address,uint256,uint256,uint256,uint256) _id, address _target, bytes _message) payable returns()
+func (_CrossL2Inbox *CrossL2InboxSession) ExecuteMessage(_id ICrossL2InboxIdentifier, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.ExecuteMessage(&_CrossL2Inbox.TransactOpts, _id, _target, _message)
+}
+
+// ExecuteMessage is a paid mutator transaction binding the contract method 0x5984c53e.
+//
+// Solidity: function executeMessage((address,uint256,uint256,uint256,uint256) _id, address _target, bytes _message) payable returns()
+func (_CrossL2Inbox *CrossL2InboxTransactorSession) ExecuteMessage(_id ICrossL2InboxIdentifier, _target common.Address, _message []byte) (*types.Transaction, error) {
+	return _CrossL2Inbox.Contract.ExecuteMessage(&_CrossL2Inbox.TransactOpts, _id, _target, _message)
+}
+
+// CrossL2InboxExecutingMessageIterator is returned from FilterExecutingMessage and is used to iterate over the raw logs and unpacked data for ExecutingMessage events raised by the CrossL2Inbox contract.
+type CrossL2InboxExecutingMessageIterator struct {
+	Event *CrossL2InboxExecutingMessage // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *CrossL2InboxExecutingMessageIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(CrossL2InboxExecutingMessage)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(CrossL2InboxExecutingMessage)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *CrossL2InboxExecutingMessageIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *CrossL2InboxExecutingMessageIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// CrossL2InboxExecutingMessage represents a ExecutingMessage event raised by the CrossL2Inbox contract.
+type CrossL2InboxExecutingMessage struct {
+	EncodedId []byte
+	Message   []byte
+	Raw       types.Log // Blockchain specific contextual infos
+}
+
+// FilterExecutingMessage is a free log retrieval operation binding the contract event 0xde7f268730ad1932c0054d4f82d4f5c46b903140ed547d6b4baf382da0a500b8.
+//
+// Solidity: event ExecutingMessage(bytes encodedId, bytes message)
+func (_CrossL2Inbox *CrossL2InboxFilterer) FilterExecutingMessage(opts *bind.FilterOpts) (*CrossL2InboxExecutingMessageIterator, error) {
+
+	logs, sub, err := _CrossL2Inbox.contract.FilterLogs(opts, "ExecutingMessage")
+	if err != nil {
+		return nil, err
+	}
+	return &CrossL2InboxExecutingMessageIterator{contract: _CrossL2Inbox.contract, event: "ExecutingMessage", logs: logs, sub: sub}, nil
+}
+
+// WatchExecutingMessage is a free log subscription operation binding the contract event 0xde7f268730ad1932c0054d4f82d4f5c46b903140ed547d6b4baf382da0a500b8.
+//
+// Solidity: event ExecutingMessage(bytes encodedId, bytes message)
+func (_CrossL2Inbox *CrossL2InboxFilterer) WatchExecutingMessage(opts *bind.WatchOpts, sink chan<- *CrossL2InboxExecutingMessage) (event.Subscription, error) {
+
+	logs, sub, err := _CrossL2Inbox.contract.WatchLogs(opts, "ExecutingMessage")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(CrossL2InboxExecutingMessage)
+				if err := _CrossL2Inbox.contract.UnpackLog(event, "ExecutingMessage", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseExecutingMessage is a log parse operation binding the contract event 0xde7f268730ad1932c0054d4f82d4f5c46b903140ed547d6b4baf382da0a500b8.
+//
+// Solidity: event ExecutingMessage(bytes encodedId, bytes message)
+func (_CrossL2Inbox *CrossL2InboxFilterer) ParseExecutingMessage(log types.Log) (*CrossL2InboxExecutingMessage, error) {
+	event := new(CrossL2InboxExecutingMessage)
+	if err := _CrossL2Inbox.contract.UnpackLog(event, "ExecutingMessage", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
