@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
@@ -13,12 +14,11 @@ const (
 
 type Message struct {
 	ChainId *big.Int       `json:"chainId"`
-	Data    []byte         `json:"data"`
+	Data    hexutil.Bytes  `json:"data"`
 	Target  common.Address `json:"target"`
 	Value   *big.Int       `json:"value"`
-	Payload []byte         `json:"payload"`
 }
 
 type CrossBundle struct {
-	Messages []*Message `json:"messsage"`
+	Messages []Message `json:"messsages"`
 }

@@ -24,6 +24,7 @@ type BuilderService struct {
 
 func NewBuilderService(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*BuilderService, error) {
 	var bs BuilderService
+	bs.Clients = make(map[string]*ethclient.Client)
 	if err := bs.initFromCLIConfig(ctx, version, cfg, log); err != nil {
 		return nil, errors.Join(err, bs.Stop(ctx))
 	}
@@ -81,7 +82,7 @@ func (bs *BuilderService) initRPCServer(cfg *CLIConfig) error {
 		oprpc.WithLogger(bs.Log),
 	)
 
-	backend := NewBackend(bs.Clients)
+	backend := NewBackend(bs.Clients, bs.Log)
 	graphAPI := NewInteropAPI(backend)
 	server.AddAPI(GetInteropAPI(graphAPI))
 	bs.Log.Info("BundleGraph API Enabled")

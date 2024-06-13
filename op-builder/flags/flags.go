@@ -1,7 +1,8 @@
-package builder
+package flags
 
 import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -26,6 +27,7 @@ func init() {
 	}
 
 	Flags = append(Flags, oprpc.CLIFlags(EnvVarPrefix)...)
+	Flags = append(Flags, oplog.CLIFlags(EnvVarPrefix)...)
 }
 
 var Flags []cli.Flag

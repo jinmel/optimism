@@ -3,6 +3,7 @@ package builder
 import (
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-builder/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,9 +18,9 @@ type CLIConfig struct {
 }
 
 func parseL2Rpc(ctx *cli.Context) map[string]string {
-	opts := ctx.StringSlice(L2EthRpcListFlag.Name)
+	opts := ctx.StringSlice(flags.L2EthRpcListFlag.Name)
 
-	var l2Rpc map[string]string
+	l2Rpc := make(map[string]string)
 	for _, opt := range opts {
 		parts := strings.Split(opt, "=")
 		if len(parts) != 2 {
@@ -28,6 +29,7 @@ func parseL2Rpc(ctx *cli.Context) map[string]string {
 		chainID := parts[0]
 		rpcURL := parts[1]
 
+		log.Info("Adding L2 RPC", "chainID", chainID, "rpcURL", rpcURL)
 		l2Rpc[chainID] = rpcURL
 	}
 	return l2Rpc

@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-builder/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -15,7 +16,7 @@ func Main(version string) cliapp.LifecycleAction {
 
 		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
 		oplog.SetGlobalLogHandler(l.Handler())
-		opservice.ValidateEnvVars(EnvVarPrefix, Flags, l)
+		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing Builder")
 		return NewBuilderService(cliCtx.Context, version, cfg, l)
