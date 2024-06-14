@@ -153,7 +153,8 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 			id.Origin = Address
 		} else {
 			b.log.Info("Sending executing message", "msg", msg)
-			contract, err := NewCrossL2Inbox(CrossL2InboxAddress, client)
+			instance, err := NewCrossL2Inbox(CrossL2InboxAddress, client)
+
 			if err != nil {
 				return fmt.Errorf("failed to create contract: %w", err)
 			}
@@ -162,13 +163,14 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 			if err != nil {
 				return fmt.Errorf("failed to create private key: %w", err)
 			}
-			opts, err := bind.NewKeyedTransactorWithChainID(privKey, msg.ChainId)
+
+			auth, err := bind.NewKeyedTransactorWithChainID(privKey, msg.ChainId)
 			if err != nil {
 				return fmt.Errorf("failed to create transactor: %w", err)
 			}
-			opts.NoSend = true
+			auth.NoSend = true
 
-			tx, err := contract.ExecuteMessage(opts, id, msg.Target, msg.Data)
+			tx, err := instance.ExecuteMessage(auth, id, msg.Target, msg.Data)
 			if err != nil {
 				return fmt.Errorf("failed to create tx: %w", err)
 			}
