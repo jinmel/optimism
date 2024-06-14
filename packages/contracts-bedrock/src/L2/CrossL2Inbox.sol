@@ -114,9 +114,6 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         reentrantAware
     {
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
-        if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
-            revert InvalidChainId();
-        }
 
         // Store the Identifier in transient storage.
         _storeIdentifier(_id);
