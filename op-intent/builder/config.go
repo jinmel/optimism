@@ -3,7 +3,7 @@ package builder
 import (
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-builder/flags"
+	"github.com/ethereum-optimism/optimism/op-intent/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/log"

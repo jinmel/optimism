@@ -117,12 +117,13 @@ func (b *Backend) newTxFromMessage(ctx context.Context, msg *Message) (*types.Tr
 	return signedTx, nil
 }
 
-func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
+func (b *Backend) SendGraphBundle(ctx context.Context, cb GraphBundle) error {
 	var id ICrossL2InboxIdentifier
 
 	fmt.Println("Sending graph bundle", cb)
-	for i, msg := range cb.Messages {
-		client, ok := b.chains[msg.ChainId.String()]
+	for i, node := range cb.Nodes {
+		client, ok := b.chains[node.Root.ChainId.String()]
+		msg := node.Root
 		if !ok {
 			return fmt.Errorf("chain %s not found in the dependency list", msg.ChainId)
 		}

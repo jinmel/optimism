@@ -9,7 +9,7 @@ PYTHON?=python3
 build: build-go build-ts
 .PHONY: build
 
-build-go: submodules op-node op-proposer op-batcher op-builder
+build-go: submodules op-node op-proposer op-batcher
 .PHONY: build-go
 
 lint-go:
@@ -137,9 +137,6 @@ op-dispute-mon:
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
-
-op-builder:
-	make -C ./op-builder op-builder
 
 cannon:
 	make -C ./cannon cannon

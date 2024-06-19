@@ -3,7 +3,7 @@ package builder
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-builder/flags"
+	"github.com/ethereum-optimism/optimism/op-intent/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"

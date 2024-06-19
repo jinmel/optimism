@@ -2,7 +2,7 @@ GITCOMMIT ?= $(shell git rev-parse HEAD)
 GITDATE ?= $(shell git show -s --format='%ct')
 # Find the github tag that points to this commit. If none are found, set the version string to "untagged"
 # Prioritizes release tag, if one exists, over tags suffixed with "-rc"
-VERSION ?= $(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-builder/' | sed 's/op-builder\///' | sort -V); \
+VERSION ?= $(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-intent/' | sed 's/op-intent\///' | sort -V); \
              preferred_tag=$$(echo "$$tags" | grep -v -- '-rc' | tail -n 1); \
              if [ -z "$$preferred_tag" ]; then \
                  if [ -z "$$tags" ]; then \
@@ -24,14 +24,14 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
-op-builder:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-builder ./cmd
+op-intent:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-intent ./cmd
 
 clean:
-	rm bin/op-builder
+	rm bin/op-intent
 
 .PHONY: \
-	op-builder \
+	op-intent \
 	clean \
 	test \
 	fuzz
