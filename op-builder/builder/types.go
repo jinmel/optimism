@@ -7,11 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-const (
-	INIT = iota
-	EXEC = iota
-)
-
 type Message struct {
 	ChainId *big.Int       `json:"chainId"`
 	Data    hexutil.Bytes  `json:"data"`
@@ -19,6 +14,7 @@ type Message struct {
 	Value   *big.Int       `json:"value"`
 }
 
-type CrossBundle struct {
-	Messages []Message `json:"messsages"`
+type GraphBundle struct {
+	Root  Message       `json:"root"`
+	Nodes []GraphBundle `json:"nodes"`
 }

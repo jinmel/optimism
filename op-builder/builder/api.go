@@ -32,13 +32,25 @@ func (api *interopAPI) SendGraphBundle(ctx context.Context, cb CrossBundle) erro
 	cross_bundle := CrossBundle{
 		Messages: []Message{
 			{
-				ChainId: big.NewInt(3151909),
+				ChainId: big.NewInt(21),
 				Data:    common.Hex2Bytes("f8a8fd6d"),
 				Target:  common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3"),
 				Value:   big.NewInt(0),
 			},
 			{
-				ChainId: big.NewInt(3151910),
+				ChainId: big.NewInt(22),
+				Data:    common.Hex2Bytes("f8a8fd6d"),
+				Target:  common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3"),
+				Value:   big.NewInt(0),
+			},
+			{
+				ChainId: big.NewInt(23),
+				Data:    common.Hex2Bytes("f8a8fd6d"),
+				Target:  common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3"),
+				Value:   big.NewInt(0),
+			},
+			{
+				ChainId: big.NewInt(24),
 				Data:    common.Hex2Bytes("f8a8fd6d"),
 				Target:  common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3"),
 				Value:   big.NewInt(0),

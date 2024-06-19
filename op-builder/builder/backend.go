@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// Hack: This is a hack to sign the transaction on behalf of the user
 var CrossL2InboxAddress = common.HexToAddress("0x4200000000000000000000000000000000000022")
 var PrivateKeyHex = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 var AddressHex = "f39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -121,7 +122,6 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 
 	fmt.Println("Sending graph bundle", cb)
 	for i, msg := range cb.Messages {
-		fmt.Println("Processing message", msg)
 		client, ok := b.chains[msg.ChainId.String()]
 		if !ok {
 			return fmt.Errorf("chain %s not found in the dependency list", msg.ChainId)
@@ -146,8 +146,10 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 				return fmt.Errorf("failed to send interop bundle: %w", err)
 			}
 
-			id.LogIndex = big.NewInt(0)
-			id.Timestamp = big.NewInt(int64(resp.Timestamp))
+			log.Info(fmt.Sprintf("Message %d response", i), "resp", resp)
+
+			id.LogIndex = big.NewInt(int64(resp.Logs[0].Index))
+			id.Timestamp = big.NewInt(0)
 			id.BlockNumber = big.NewInt(int64(resp.BlockNumber))
 			id.ChainId = msg.ChainId
 			id.Origin = Address
@@ -175,9 +177,6 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 				return fmt.Errorf("failed to create tx: %w", err)
 			}
 
-			r, v, s := tx.RawSignatureValues()
-			b.log.Info("Signature", r, v, s)
-
 			txBytes, err := transactionToHex(tx)
 			if err != nil {
 				return fmt.Errorf("failed to convert transaction to hex: %w", err)
@@ -187,8 +186,11 @@ func (b *Backend) SendGraphBundle(ctx context.Context, cb CrossBundle) error {
 			if err != nil {
 				return fmt.Errorf("failed to send interop bundle: %w", err)
 			}
-			id.LogIndex = big.NewInt(0)
-			id.Timestamp = big.NewInt(int64(resp.Timestamp))
+
+			log.Info(fmt.Sprintf("Message %d response", i), "resp", resp)
+
+			id.LogIndex = big.NewInt(int64(resp.Logs[0].Index))
+			id.Timestamp = big.NewInt(int64(0))
 			id.BlockNumber = big.NewInt(int64(resp.BlockNumber))
 			id.ChainId = msg.ChainId
 			id.Origin = Address
