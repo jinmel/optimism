@@ -7,14 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -23,8 +16,23 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
+
+func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	require.NoError(t, err)
+	return channelOut
+}
 
 // TestSyncBatchType run each sync test case in singular batch mode and span batch mode.
 func TestSyncBatchType(t *testing.T) {
@@ -211,16 +219,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 1,
-	})
-	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -247,7 +246,7 @@ func TestBackupUnsafe(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(sd.RollupCfg, block)
+		err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -266,10 +265,8 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
-	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	// Run until we consume A1 from batch
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -277,8 +274,8 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	// Run until we consume B2 from batch
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -383,16 +380,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 1,
-	})
-	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -419,7 +407,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(sd.RollupCfg, block)
+		err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -438,10 +426,8 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
-	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	// Run till we consumed A1 from batch
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -449,8 +435,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -460,14 +445,14 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2PipelineStep(t)
-	// forceNextSafeAttributes is called
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		_, ok := ev.(engine2.ProcessAttributesEvent)
+		return ok
+	}, 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
-	// TryBackupUnsafeReorg is called
-	sequencer.ActL2PipelineStep(t)
+	// The backup-unsafe rewind is applied
 
 	// try to process invalid leftovers: B4, B5
 	sequencer.ActL2PipelineFull(t)
@@ -531,16 +516,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(5))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 1,
-	})
-	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -567,7 +543,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		_, err = channelOut.AddBlock(sd.RollupCfg, block)
+		err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -587,9 +563,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	// pendingSafe must not be advanced as well
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(0))
 	// Preheat engine queue and consume A1 from batch
-	for i := 0; i < 4; i++ {
-		sequencer.ActL2PipelineStep(t)
-	}
+	sequencer.ActL2EventsUntilPending(t, 1)
 	// A1 is valid original block so pendingSafe is advanced
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(1))
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(5))
@@ -597,8 +571,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, sequencer.L2BackupUnsafe())
 
 	// Process B2
-	sequencer.ActL2PipelineStep(t)
-	sequencer.ActL2PipelineStep(t)
+	sequencer.ActL2EventsUntilPending(t, 2)
 	// B2 is valid different block, triggering unsafe chain reorg
 	require.Equal(t, sequencer.L2Unsafe().Number, uint64(2))
 	// B2 is valid different block, triggering unsafe block backup
@@ -607,17 +580,21 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.Equal(t, sequencer.L2PendingSafe().Number, uint64(2))
 
 	// B3 is invalid block
-	// NextAttributes is called
-	sequencer.ActL2PipelineStep(t)
-	// forceNextSafeAttributes is called
-	sequencer.ActL2PipelineStep(t)
+	// wait till attributes processing (excl.) before mocking errors
+	sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+		_, ok := ev.(engine2.ProcessAttributesEvent)
+		return ok
+	}, 100, true)
 
 	serverErrCnt := 2
 	for i := 0; i < serverErrCnt; i++ {
 		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
 		seqEng.ActL2RPCFail(t, engine.GenericServerError)
 		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2PipelineStep(t)
+		sequencer.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, ok := ev.(rollup.EngineTemporaryErrorEvent)
+			return ok
+		}, 100, false)
 		// backupUnsafeHead not emptied yet
 		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
 	}
@@ -869,16 +846,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
-	c, e := compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 1,
-	})
-	require.NoError(t, e)
-	spanBatchBuilder := derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	// Create new span batch channel
-	channelOut, err := derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
-	require.NoError(t, err)
+	channelOut := newSpanChannelOut(t, *sd)
 
 	// Create block A1 ~ A12 for L1 block #0 ~ #2
 	miner.ActEmptyBlock(t)
@@ -895,7 +863,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
 		}
 		// Add A1 ~ A12 into the channel
-		_, err = channelOut.AddBlock(sd.RollupCfg, block)
+		err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 
@@ -917,16 +885,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	require.Equal(t, verifier.L2Unsafe().Number, uint64(7))
 	require.Equal(t, verifier.L2Safe().Number, uint64(0))
 
-	// Create new span batch channel
-	c, e = compressor.NewRatioCompressor(compressor.Config{
-		TargetFrameSize:  128_000,
-		TargetNumFrames:  1,
-		ApproxComprRatio: 1,
-	})
-	require.NoError(t, e)
-	spanBatchBuilder = derive.NewSpanBatchBuilder(sd.RollupCfg.Genesis.L2Time, sd.RollupCfg.L2ChainID)
-	channelOut, err = derive.NewChannelOut(derive.SpanBatchType, c, spanBatchBuilder)
-	require.NoError(t, err)
+	channelOut = newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
 		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
@@ -953,7 +912,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
 		}
 		// Add B1, A2 ~ A12 into the channel
-		_, err = channelOut.AddBlock(sd.RollupCfg, block)
+		err = channelOut.AddBlock(sd.RollupCfg, block)
 		require.NoError(t, err)
 	}
 	// Submit span batch(B1, A2, ... A12)
@@ -1020,7 +979,12 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
-		verifier.ActL2PipelineStep(t)
+		// wait for next pending block
+		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, pending := ev.(engine2.PendingSafeUpdateEvent)
+			_, idle := ev.(derive.DeriverIdleEvent)
+			return pending || idle
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
@@ -1067,7 +1031,12 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
-		verifier.ActL2PipelineStep(t)
+		// wait for next pending block
+		verifier.ActL2EventsUntil(t, func(ev rollup.Event) bool {
+			_, pending := ev.(engine2.PendingSafeUpdateEvent)
+			_, idle := ev.(derive.DeriverIdleEvent)
+			return pending || idle
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))

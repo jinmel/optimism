@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -43,6 +42,9 @@ type BatcherConfig struct {
 	// UsePlasma is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the Plasma DA server and post commitments to blobs or calldata.
 	UsePlasma bool
+
+	WaitNodeSync        bool
+	CheckRecentTxsDepth int
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -97,6 +99,8 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
+	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
+	bs.WaitNodeSync = cfg.WaitNodeSync
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
@@ -187,22 +191,23 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 }
 
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
-	bs.ChannelConfig = ChannelConfig{
+	cc := ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
-		MaxFrameSize:       cfg.MaxL1TxSize, // reset for blobs
+		MaxFrameSize:       cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
+		TargetNumFrames:    cfg.TargetNumFrames,
 		SubSafetyMargin:    cfg.SubSafetyMargin,
-		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
 	}
 
 	switch cfg.DataAvailabilityType {
 	case flags.BlobsType:
 		if !cfg.TestUseMaxTxSizeForBlobs {
-			bs.ChannelConfig.MaxFrameSize = eth.MaxBlobDataSize
+			// account for version byte prefix
+			cc.MaxFrameSize = eth.MaxBlobDataSize - 1
 		}
-		bs.ChannelConfig.MultiFrameTxs = true
+		cc.MultiFrameTxs = true
 		bs.UseBlobs = true
 	case flags.CalldataType:
 		bs.UseBlobs = false
@@ -210,16 +215,11 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
-	if bs.UsePlasma && bs.ChannelConfig.MaxFrameSize > plasma.MaxInputSize {
-		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", bs.ChannelConfig.MaxFrameSize, plasma.MaxInputSize)
+	if bs.UsePlasma && cc.MaxFrameSize > plasma.MaxInputSize {
+		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", cc.MaxFrameSize, plasma.MaxInputSize)
 	}
 
-	bs.ChannelConfig.MaxFrameSize-- // subtract 1 byte for version
-
-	if bs.ChannelConfig.CompressorConfig.Kind == compressor.ShadowKind {
-		// shadow compressor guarantees to not go over target size, so can use max size
-		bs.ChannelConfig.CompressorConfig.TargetFrameSize = bs.ChannelConfig.MaxFrameSize
-	}
+	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
 
 	if bs.UseBlobs && !bs.RollupConfig.IsEcotone(uint64(time.Now().Unix())) {
 		bs.Log.Error("Cannot use Blob data before Ecotone!") // log only, the batcher may not be actively running.
@@ -228,16 +228,29 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		bs.Log.Warn("Ecotone upgrade is active, but batcher is not configured to use Blobs!")
 	}
 
-	if err := bs.ChannelConfig.Check(); err != nil {
+	// Checking for brotli compression only post Fjord
+	if bs.ChannelConfig.CompressorConfig.CompressionAlgo.IsBrotli() && !bs.RollupConfig.IsFjord(uint64(time.Now().Unix())) {
+		return fmt.Errorf("cannot use brotli compression before Fjord")
+	}
+
+	if err := cc.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
 	bs.Log.Info("Initialized channel-config",
 		"use_blobs", bs.UseBlobs,
-		"max_frame_size", bs.ChannelConfig.MaxFrameSize,
-		"max_channel_duration", bs.ChannelConfig.MaxChannelDuration,
-		"channel_timeout", bs.ChannelConfig.ChannelTimeout,
-		"batch_type", bs.ChannelConfig.BatchType,
-		"sub_safety_margin", bs.ChannelConfig.SubSafetyMargin)
+		"use_plasma", bs.UsePlasma,
+		"max_frame_size", cc.MaxFrameSize,
+		"target_num_frames", cc.TargetNumFrames,
+		"compressor", cc.CompressorConfig.Kind,
+		"compression_algo", cc.CompressorConfig.CompressionAlgo,
+		"batch_type", cc.BatchType,
+		"max_channel_duration", cc.MaxChannelDuration,
+		"channel_timeout", cc.ChannelTimeout,
+		"sub_safety_margin", cc.SubSafetyMargin)
+	if bs.UsePlasma {
+		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
+	}
+	bs.ChannelConfig = cc
 	return nil
 }
 
@@ -269,19 +282,19 @@ func (bs *BatcherService) initPProf(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 	if !cfg.MetricsConfig.Enabled {
-		bs.Log.Info("metrics disabled")
+		bs.Log.Info("Metrics disabled")
 		return nil
 	}
 	m, ok := bs.Metrics.(opmetrics.RegistryMetricer)
 	if !ok {
 		return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", bs.Metrics)
 	}
-	bs.Log.Debug("starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
+	bs.Log.Debug("Starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
 	metricsSrv, err := opmetrics.StartServer(m.Registry(), cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort)
 	if err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	bs.Log.Info("started metrics server", "addr", metricsSrv.Addr())
+	bs.Log.Info("Started metrics server", "addr", metricsSrv.Addr())
 	bs.metricsSrv = metricsSrv
 	return nil
 }

@@ -7,15 +7,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type dataJson struct {
 	Data map[string]any `json:"data"`
 }
 
-// TestAPIGenesisResponse tests that json unmarshaling a json response from a
+// TestAPIGenesisResponse tests that json unmarshalling a json response from a
 // eth/v1/beacon/genesis beacon node call into a APIGenesisResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.
@@ -40,7 +41,7 @@ func TestAPIGenesisResponse(t *testing.T) {
 	require.Equal(jsonMap.Data["genesis_time"].(string), string(genesisTime))
 }
 
-// TestAPIConfigResponse tests that json unmarshaling a json response from a
+// TestAPIConfigResponse tests that json unmarshalling a json response from a
 // eth/v1/config/spec beacon node call into a APIConfigResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.
@@ -65,7 +66,7 @@ func TestAPIConfigResponse(t *testing.T) {
 	require.Equal(jsonMap.Data["SECONDS_PER_SLOT"].(string), string(secPerSlot))
 }
 
-// TestAPIGetBlobSidecarsResponse tests that json unmarshaling a json response from a
+// TestAPIGetBlobSidecarsResponse tests that json unmarshalling a json response from a
 // eth/v1/beacon/blob_sidecars/<X> beacon node call into a APIGetBlobSidecarsResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.

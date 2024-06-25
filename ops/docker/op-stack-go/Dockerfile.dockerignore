@@ -8,6 +8,7 @@
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
+!/packages/contracts-bedrock/snapshots
 !/op-dispute-mon
 !/op-conductor
 !/op-heartbeat
@@ -16,6 +17,7 @@
 !/op-program
 !/op-proposer
 !/op-service
+!/op-supervisor
 !/op-wheel
 !/op-plasma
 !/go.mod

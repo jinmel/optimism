@@ -16,7 +16,7 @@ var (
 	ErrAlreadyReserved = errors.New("address already reserved")
 
 	// Returned by CriticalError when the system is unable to get the tx into the mempool in the
-	// alloted time
+	// allotted time
 	ErrMempoolDeadlineExpired = errors.New("failed to get tx into the mempool")
 )
 
@@ -90,7 +90,7 @@ func (s *SendState) TxMined(txHash common.Hash) {
 	s.minedTxs[txHash] = struct{}{}
 }
 
-// TxMined records that the txn with txnHash has not been mined or has been
+// TxNotMined records that the txn with txnHash has not been mined or has been
 // reorg'd out. It is safe to call this function multiple times.
 func (s *SendState) TxNotMined(txHash common.Hash) {
 	s.mu.Lock()
@@ -125,7 +125,7 @@ func (s *SendState) CriticalError() error {
 		// we have exceeded the nonce too low count
 		return core.ErrNonceTooLow
 	case s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
-		// unable to get the tx into the mempool in the alloted time
+		// unable to get the tx into the mempool in the allotted time
 		return ErrMempoolDeadlineExpired
 	case s.alreadyReserved:
 		// incompatible tx type in mempool
