@@ -40,7 +40,7 @@ func (f *nilBuilderClient) Enabled() bool {
 	return false
 }
 
-var _ derive.BuilderClient = (*nilBuilderClient)(nil)
+var _ engine.BuilderClient = (*nilBuilderClient)(nil)
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 	l1BlobsSource derive.L1BlobsFetcher, l2Source engine.Engine, targetBlockNum uint64) *Driver {
