@@ -72,7 +72,8 @@ type BuilderPayloadAttributes struct {
 	Withdrawals           types.Withdrawals  `json:"withdrawals"`
 	ParentBeaconBlockRoot *common.Hash       `json:"parentBeaconBlockRoot"`
 	Transactions          types.Transactions `json:"transactions"`
-	GasLimit              uint64
+	GasLimit              uint64             `json:"gasLimit"`
+	NoTxPool              bool               `json:"noTxPool,omitempty"`
 }
 
 type NextAttributesProvider interface {

@@ -205,6 +205,7 @@ func confirmPayload(
 	}
 
 	if builderEnvelope != nil {
+		fmt.Printf("\033[32mExecutionPayload: %+v\n \033[0m\n", builderEnvelope.ExecutionPayload)
 		metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), "builder")
 		metrics.CountSequencedTxsBySource(len(builderEnvelope.ExecutionPayload.Transactions), "builder")
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
